@@ -80,12 +80,12 @@ mpimg.imsave("./output_images/example_notcar.png" , notcar_image, format='png')
 
 ### Tweak these parameters and see how the results change.
 color_space = 'YCrCb' #'RGB' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
-orient = 12 # HOG orientations
+orient = 8#12 # HOG orientations
 pix_per_cell = 8 # HOG pixels per cell
 cell_per_block = 2 # HOG cells per block
 hog_channel = 'ALL' # Can be 0, 1, 2, or "ALL"
 spatial_size = (16, 16) # Spatial binning dimensions
-hist_bins = 32     # Number of histogram bins
+hist_bins = 16 #32     # Number of histogram bins
 spatial_feat = True # Spatial features on or off
 hist_feat = True # Histogram features on or off
 hog_feat = True # HOG features on or off
@@ -327,11 +327,17 @@ def find_cars(on_windows, img, ystart, ystop, xstart, xstop, scale, svc, X_scale
             test_prediction = svc.predict(test_features)
             
             if test_prediction == 1:
-                xbox_left = np.int(xleft*scale)
-                ytop_draw = np.int(ytop*scale)
-                win_draw = np.int(window*scale)
-                on_windows.append(((xbox_left+xstart, ytop_draw+ystart), (xbox_left+win_draw+xstart,ytop_draw+win_draw+ystart)))
-                cv2.rectangle(draw_img,(xbox_left+xstart, ytop_draw+ystart),(xbox_left+win_draw+xstart,ytop_draw+win_draw+ystart),(0,255,0),6) 
+                test_decision = svc.decision_function(test_features)
+                if test_decision > 1.0:
+                    #print('test_decision=', test_decision)
+                    xbox_left = np.int(xleft*scale)
+                    ytop_draw = np.int(ytop*scale)
+                    win_draw = np.int(window*scale)
+                    win_coord = ((xbox_left+xstart, ytop_draw+ystart), (xbox_left+win_draw+xstart,ytop_draw+win_draw+ystart))
+                    #filename = "./positive_detections/{0}_{1}_{2}_{3}_{4}_window.png".format(test_decision[0], win_coord[0][0], win_coord[0][1], win_coord[1][0], win_coord[1][1])
+                    #mpimg.imsave(filename, cv2.resize(img_tosearch[ytop:ytop+window, xleft:xleft+window], (64,64)), format='png')
+                    on_windows.append(win_coord)
+                    cv2.rectangle(draw_img,win_coord[0],win_coord[1],(0,255,0),6) 
                 
     return draw_img, on_windows
     
@@ -451,6 +457,7 @@ for test_image in test_images:
 def detect_vehicles(image, windows, all_windows, heat_threshold):
     draw_image = np.copy(image)
     hot_windows = []
+    
     ystart = 390
     ystop = 675
     xstart = 300
@@ -458,12 +465,40 @@ def detect_vehicles(image, windows, all_windows, heat_threshold):
     scale = 1.25
     out_img, hot_windows = find_cars(hot_windows, draw_image, ystart, ystop, xstart, xstop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins, color_space)
 
+    # Add heat to each box in box list
+    heat = np.zeros_like(image[:,:,0]).astype(np.float)
+    heat = add_heat(heat,hot_windows)
+
+    # Apply threshold to help remove false positives
+    heat = apply_threshold(heat,heat_threshold)
+    # Visualize the heatmap when displaying    
+    heatmap = np.clip(heat, 0, 255)
+    # Find final boxes from heatmap using label function
+    labels = label(heatmap)
+    hot_windows.extend(get_labeled_bboxes(labels))
+    #all_windows.insert(0, bboxes) 
+    
+    
     ystart = 390
-    ystop = 510
+    ystop = 550
     xstart = 200
     xstop = 1200
     scale = 1.5
     out_img, hot_windows = find_cars(hot_windows, draw_image, ystart, ystop, xstart, xstop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins, color_space)
+    
+    # Add heat to each box in box list
+    heat = np.zeros_like(image[:,:,0]).astype(np.float)
+    heat = add_heat(heat,hot_windows)
+
+    # Apply threshold to help remove false positives
+    heat = apply_threshold(heat,heat_threshold)
+    # Visualize the heatmap when displaying    
+    heatmap = np.clip(heat, 0, 255)
+    # Find final boxes from heatmap using label function
+    labels = label(heatmap)
+    hot_windows.extend(get_labeled_bboxes(labels))
+    #all_windows.insert(0, bboxes)  
+    
     
     ystart = 400
     ystop = 675
@@ -472,8 +507,22 @@ def detect_vehicles(image, windows, all_windows, heat_threshold):
     scale = 1.75
     out_img, hot_windows = find_cars(hot_windows, draw_image, ystart, ystop, xstart, xstop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins, color_space)
 
+    # Add heat to each box in box list
+    heat = np.zeros_like(image[:,:,0]).astype(np.float)
+    heat = add_heat(heat,hot_windows)
+
+    # Apply threshold to help remove false positives
+    heat = apply_threshold(heat,heat_threshold)
+    # Visualize the heatmap when displaying    
+    heatmap = np.clip(heat, 0, 255)
+    # Find final boxes from heatmap using label function
+    labels = label(heatmap)
+    hot_windows.extend(get_labeled_bboxes(labels))
+    #all_windows.insert(0, bboxes)  
+    
+        
     all_windows.insert(0, hot_windows)
-    max_prev_frames = 10
+    max_prev_frames = 30
     heatmap_windows = []
     for win in all_windows[:max_prev_frames]:
         heatmap_windows.extend(win)
@@ -502,7 +551,7 @@ test_images = glob.glob('test_images/*.jpg')
 for test_image in test_images:
     image = mpimg.imread(test_image)
     all_windows = []
-    heat_threshold = 1
+    heat_threshold = 2
     draw_image = detect_vehicles(image, windows, all_windows, heat_threshold)
     filename = "./output_images/%s_cars.png" % (test_image.split('/')[-1].split('.')[0])
     mpimg.imsave(filename, draw_image, format='png')
@@ -513,16 +562,22 @@ for test_image in test_images:
 
 from moviepy.editor import VideoFileClip
 
-all_windows = []
-heat_threshold = 6
+heat_threshold = 15
 def vehicle_detection_clip_pipeline(clip, windows):
     def vehicle_detection_clip_param_pass(image):
         return detect_vehicles(image, windows, all_windows, heat_threshold)
     return clip.fl_image(vehicle_detection_clip_param_pass)
 
+all_windows = []
+project_video_output = './test_video_output.mp4'
+project_video_clip = VideoFileClip("./test_video.mp4")  
+project_video_output_clip = project_video_clip.fx(vehicle_detection_clip_pipeline, all_windows)
+project_video_output_clip.write_videofile(project_video_output, audio=False)
+
+all_windows = []
 project_video_output = './project_video_output.mp4'
 project_video_clip = VideoFileClip("./project_video.mp4")  
-project_video_output_clip = project_video_clip.fx(vehicle_detection_clip_pipeline, windows)
+project_video_output_clip = project_video_clip.fx(vehicle_detection_clip_pipeline, all_windows)
 project_video_output_clip.write_videofile(project_video_output, audio=False)
 
 

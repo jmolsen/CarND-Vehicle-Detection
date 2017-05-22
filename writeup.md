@@ -66,7 +66,7 @@ Example Not-Car
 
 I then explored different color spaces and different `skimage.hog()` parameters (`orientations`, `pixels_per_cell`, and `cells_per_block`).  I grabbed random images from each of the two classes and displayed them to get a feel for what the `skimage.hog()` output looks like.
 
-Here is an example of a car and a not-car using the `YCrCb` color space and HOG parameters of `orientations=12`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)`:
+Here is an example of a car and a not-car using the `YCrCb` color space and HOG parameters of `orientations=8`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)`:
 
 
 ![Example Car for HOG][image3]
@@ -76,7 +76,7 @@ Here is an example of a car and a not-car using the `YCrCb` color space and HOG 
 
 ####2. Explain how you settled on your final choice of HOG parameters.
 
-I tried various combinations of parameters including various color spaces, numbers of HOG orientations, HOG pixels per cell, HOG cells per block, and HOG channels.  I ended up with the ones above because of the combinations I tried, they seemed to provide the best results.
+I tried various combinations of parameters including various color spaces, numbers of HOG orientations, HOG pixels per cell, HOG cells per block, and HOG channels.  I ended up with the ones above because of the combinations I tried, they seemed to provide the best results.  I also took into account some feedback from my original submission and made some adjustments.
 
 ####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
 
@@ -86,7 +86,7 @@ I trained a linear SVM using a combination of HOG features, spatial binning, and
 
 ####1. Describe how (and identify where in your code) you implemented a sliding window search.  How did you decide what scales to search and how much to overlap windows?
 
-I decided to search at a few different scales since the cars should be different sizes in the image depending on how far away they are.  So, I searched a smaller area only near the horizon at the smallest scale and then increased the the max y-value for each increasing scale, searching the entire section of the raod part of the image for the largest scale.  The code for this is on lines 258 through 495.  It includes the `find_cars()` function which searches for a single scale and set of start and stop values for x and y.  It also includes the `detect_vehicles()` function which calls `find_cars()` multiple times for a few different scales and areas of the image as described above.
+I decided to search at a few different scales since the cars should be different sizes in the image depending on how far away they are.  So, I searched a smaller area only near the horizon at the smallest scale and then increased the the max y-value for each increasing scale, searching the entire section of the raod part of the image for the largest scale.  The code for this is on lines 258 through 544.  It includes the `find_cars()` function which searches for a single scale and set of start and stop values for x and y.  It also includes the `detect_vehicles()` function which calls `find_cars()` multiple times for a few different scales and areas of the image as described above.
 
 
 ####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
@@ -112,6 +112,8 @@ Here's a [link to my video result](./project_video_output.mp4)
 I recorded the positions of positive detections in each frame of the video.  From the positive detections I created a heatmap and then thresholded that map to identify vehicle positions.  I then used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap.  I then assumed each blob corresponded to a vehicle.  I constructed bounding boxes to cover the area of each blob detected.  
 
 I also kept track of previous detections and included the last several frames worth of detections when calculating heat in order to boost and smooth positive identification of previously detected cars.
+
+Based on recommendations from my original submission, I also checked the `decision_function()` of LinearSVC to further filter out false positives.
 
 Here's an example result showing the heatmap from a series of images with their detections that the heatmap is based on.
 
@@ -142,6 +144,12 @@ I started out by using the code I had written and that was provided in the Lesso
 I was running into issues with lots of false positives.  One thing I did to try to combat that was to augment the data when extracting features for training with mirrored images.  That did seem to help a bit.  To help reduce false positives in the video I kept track of previous car detections and also the labeled heatmap spots and included the last several frames worth when calculating subsequent heatmaps.  In doing that, I was hoping to both amplify the true car detections in the heatmap and also to smooth out their labeling a bit.  This also meant I could increase the heatmap threshold to reduce the false positives.  That definitely improved the video, but I still have some false positives left in there.
 
 My classifier had a pretty good test accuracy of around 99.4% So, I think it was trained well for the data available.  However, I think if the data was augmented more or possibly manually curated to create the training and test sets that might improve the accuracy on the video (and the test images).
+
+So, based on my original submission feedback, I followed the recommendations to reduce the number of false positives I was finding.  I did some hard mining and saved the windows I was currently predicting to be cars and manually curated them to separate out the false positives.  I was able to manually add almost 2000 additional non-car images to improve the training.  I also tweaked a few hyper-parameters.  As mentioned above, I added the LinearSVC decision_function to further filter false positives.  Finally, I created heatmaps after each scale run of `find_cars()` in my `detect_vehicles()` function to further filter false positives.
+
+Those suggested changes greatly improved my final video.  There are far fewer false positives and the boudning boxes on the cars are a bit smoother.
+
+
 
  
 
